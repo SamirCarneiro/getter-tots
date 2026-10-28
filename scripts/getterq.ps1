@@ -3,11 +3,13 @@ $getterCommand = Join-Path (Split-Path $PSScriptRoot -Parent) 'tools/getterq'
 $getterArguments = @()
 $getterHasToolArguments = $false
 for ($getterIndex = 0; $getterIndex -lt $args.Count; $getterIndex++) {
-    if ($args[$getterIndex] -eq '-GetterHome') {
+    if (-not $getterHasToolArguments -and $args[$getterIndex] -eq '-GetterHome') {
         $getterIndex++
         if ($getterIndex -ge $args.Count) { [Console]::Error.WriteLine('-GetterHome needs a folder'); exit 2 }
         $getterArguments += @('--getter-home', [string]$args[$getterIndex])
-    } elseif ($args[$getterIndex] -ne '--' -or $getterHasToolArguments) {
+    } elseif (-not $getterHasToolArguments -and $args[$getterIndex] -eq '--') {
+        $getterHasToolArguments = $true
+    } else {
         $getterArguments += [string]$args[$getterIndex]
         $getterHasToolArguments = $true
     }

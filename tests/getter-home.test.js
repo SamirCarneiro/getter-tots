@@ -18,14 +18,28 @@ function fixture(t) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const home = path.join(dir, "home with spaces");
   fs.mkdirSync(home);
-  const env = { ...process.env, GETTER_TEST_HOME: home, HOME: home, USERPROFILE: home };
+  const discoveryTools = path.join(dir, "discovery-tools");
+  fs.mkdirSync(discoveryTools);
+  for (const tool of TOOLS) fs.copyFileSync(path.join(ROOT, "tools", tool), path.join(discoveryTools, tool));
+  const env = { ...process.env, GETTER_TEST_HOME: home, GETTER_TEST_FIXTURE: dir, HOME: home, USERPROFILE: home };
   for (const key of ["GETTER_HOME", "T3_HOME", "T3CODE_HOME", "GETTER_PYTHON", "NODE_OPTIONS"]) delete env[key];
   const nodeHook = path.join(dir, "capture-runtime.cjs");
   fs.writeFileSync(nodeHook, `
 const fs = require("node:fs"), path = require("node:path"), os = require("node:os");
 os.homedir = () => process.env.GETTER_TEST_HOME;
+os.hostname = () => "fixture-machine";
 const original = fs.readFileSync;
 fs.readFileSync = function(file, ...args) {
+  const relative = path.relative(process.env.GETTER_TEST_FIXTURE, path.resolve(String(file)));
+  if (["token", "listen.json", "listen-state.json", "answered-here.json"].includes(path.basename(String(file)))) {
+    if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+      console.error("GETTER_TEST_PRIVATE_READ_BLOCKED");
+      process.exit(66);
+    }
+    const unavailable = new Error("fixture private sidecar unavailable");
+    unavailable.code = "ENOENT";
+    throw unavailable;
+  }
   if (path.basename(String(file)) === "server-runtime.json") {
     console.log(${JSON.stringify(CAPTURE)} + JSON.stringify({ path: String(file) }));
     process.exit(0);
@@ -59,14 +73,14 @@ runpy.run_path(sys.argv[0], run_name="__main__")
     fs.mkdirSync(folder, { recursive: true });
     fs.writeFileSync(path.join(folder, name), name === "server-runtime.json" ? "{}" : "");
   };
-  return { dir, home, env, nodeHook, pythonHook, marker };
+  return { dir, home, discoveryTools, env, nodeHook, pythonHook, marker };
 }
 
 async function discovered(tool, f) {
   const python = process.platform === "win32" ? "py" : "python3";
   const result = tool === "t3q.py"
-    ? await run(python, [...(process.platform === "win32" ? ["-3"] : []), f.pythonHook, path.join(ROOT, "tools", tool)], f.env)
-    : await run(process.execPath, ["--require", f.nodeHook, path.join(ROOT, "tools", tool), ...(tool === "t3ctl" ? ["projects"] : tool === "t3listen" ? ["--dry-run", "--once", "--timeout", "1"] : [])], f.env);
+    ? await run(python, [...(process.platform === "win32" ? ["-3"] : []), f.pythonHook, path.join(f.discoveryTools, tool)], f.env)
+    : await run(process.execPath, ["--require", f.nodeHook, path.join(f.discoveryTools, tool), ...(tool === "t3ctl" ? ["projects"] : tool === "t3listen" ? ["--dry-run", "--once", "--timeout", "1"] : [])], f.env);
   assert.equal(result.code, 0, `${tool}: ${result.stdout}\n${result.stderr}`);
   const line = result.stdout.split(/\r?\n/).find((value) => value.startsWith(CAPTURE));
   assert.ok(line, `${tool} did not capture discovery: ${result.stdout}\n${result.stderr}`);
@@ -84,6 +98,17 @@ async function expectAll(t, f, expected) {
     }
   })));
 }
+
+test("discovery hook refuses private reads outside its temporary fixture before opening the file", async (t) => {
+  const f = fixture(t), other = fs.mkdtempSync(path.join(os.tmpdir(), "getter-private-probe-"));
+  t.after(() => fs.rmSync(other, { recursive: true, force: true }));
+  const privateFixture = path.join(other, "listen.json");
+  fs.writeFileSync(privateFixture, "fixture-only-canary");
+  const result = await run(process.execPath, ["--require", f.nodeHook, "-e", 'console.log(require("node:fs").readFileSync(process.argv[1], "utf8"))', privateFixture], f.env);
+  assert.equal(result.code, 66);
+  assert.match(result.stderr, /GETTER_TEST_PRIVATE_READ_BLOCKED/);
+  assert.equal(result.stdout, "");
+});
 
 test("GETTER_HOME base wins over both explicit upstream aliases", async (t) => {
   const f = fixture(t), getter = path.join(f.home, "getter base");
@@ -226,13 +251,13 @@ test("getterq accepts an explicit Python executable and reports a missing execut
 
 for (const shell of process.platform === "win32" ? ["pwsh", "powershell.exe"] : ["pwsh"]) {
   for (const name of ["getterctl", "getterq"]) {
-    test(`${name}.ps1 under ${shell} forwards -GetterHome and tool arguments without losing quotes`, async (t) => {
+    for (const marker of [false, true]) test(`${name}.ps1 under ${shell} forwards colliding option values ${marker ? "after --" : "after the tool command"}`, async (t) => {
       const f = wrapperFixture(t, name), selected = path.join(f.home, "PowerShell selected base");
       const available = await run(shell, ["-NoProfile", "-NonInteractive", "-Command", "exit 0"], f.env, 60000);
       if (available.code === "ENOENT") { t.skip(`${shell} is not installed`); return; }
       assert.equal(available.code, 0, available.stdout + available.stderr);
-      const args = ["read", "--thread", "thread with spaces", "--text", 'the "quoted" answer', "--literal-marker", "--"];
-      const result = await run(shell, ["-NoProfile", "-NonInteractive", "-File", f.psWrapper, "-GetterHome", selected, "--", ...args], f.env, 60000);
+      const args = ["rename", "--thread", "thread with spaces", "--title", "-GetterHome", "--text", 'the "quoted" answer', "--literal-marker", "--"];
+      const result = await run(shell, ["-NoProfile", "-NonInteractive", "-File", f.psWrapper, "-GetterHome", selected, ...(marker ? ["--"] : []), ...args], f.env, 60000);
       const found = wrapperResult(result);
       assert.deepEqual(found.args, args);
       assert.equal(found.home, selected);
