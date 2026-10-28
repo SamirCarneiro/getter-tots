@@ -1,4 +1,37 @@
-# T3 Tots
+# Getter Tots
+
+Getter Tots is the local companion for [Getter Code](https://github.com/SamirCarneiro/getter-code), derived from [T3 Tots by Deepusleepy](https://github.com/Deepusleepy/t3-tots). It keeps the upstream MIT license, skill names, read-only database access, and approval controls.
+
+## Getter local usage
+
+This repository ships local commands rather than a separate desktop application. Start Getter Code first, then run these commands from this checkout with Node 22+ and Python 3.8+:
+
+```powershell
+node tools/getterctl
+node tools/getterq projects
+node tools/getterq health
+```
+
+For an explicitly selected server home, use the same folder passed to Getter Code:
+
+```powershell
+node tools/getterq --getter-home 'D:\GetterData' projects
+node tools/getterctl --getter-home 'D:\GetterData' projects
+
+# PowerShell launchers preserve each argument, including paths with spaces.
+./scripts/getterq.ps1 -GetterHome 'D:\GetterData' projects
+./scripts/getterctl.ps1 -GetterHome 'D:\GetterData' projects
+```
+
+The discovery order is `GETTER_HOME`, explicit `T3_HOME`, explicit `T3CODE_HOME`, then `~/.getter-code/userdata`. A base folder resolves to its `userdata` subfolder; a folder containing `server-runtime.json` or `statev2.sqlite`, or explicitly named `userdata` or `dev`, is used directly. No command silently falls back to the upstream `~/.t3` installation. Set `GETTER_HOME` for `t3listen`, `export.js`, and `survey.js` too. Windows `getterq` uses `py -3`; `GETTER_PYTHON` can select a Python executable by its full path.
+
+`getterq` needs no token and opens the database read-only. Authenticated `getterctl` commands use only the existing `tools/token` file; the wrappers do not issue tokens, install skills, enable listeners, or send prompts on startup. An absent token is reported as `NO_TOKEN`. Upstream approval guards remain in place, including `--user-approved` for an accepted approval.
+
+The local `manifest.json` identifies the Getter revision and verifies its modified tools. `upstream-manifest.json` preserves the original v1.4.29 hashes, and all 22 upstream skills retain their original bytes. Their release installer still refers to the original T3 Tots release; use the local Getter launchers above for this fork. Getter releases must be tagged before remote installation.
+
+The protocol remains the T3 orchestration protocol 2, with `server-runtime.json`, `statev2.sqlite`, and `/api/orchestration/*`. It is an internal interface and must be checked alongside Getter Code updates. Optional listeners use their own Getter service identity (`com.getter.tots.listen` / `Getter Tots listener`); `GETTER_LISTEN_LABEL` or the explicit legacy `T3LISTEN_LABEL` overrides it. Listener installation on Windows does not retain a home variable set only in the calling shell; use the default Getter home or supply that environment again when starting the listener manually.
+
+## Upstream T3 Tots documentation
 
 Grok Bot / chat companion for [T3 Code](https://github.com/pingdotgg/t3code), with skills and helper tools. Thread status, waiting items, new threads, answers, reports, watches, and updates.
 

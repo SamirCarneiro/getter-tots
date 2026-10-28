@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """T3 Tots read-only query tool. Usage: python3 t3q.py <overview|waiting|thread|projects|health|usage>
 Settings via env: T3_DAYS, T3_ALL=1, T3_Q (thread name or id), T3_LAST, T3_WEEK=1.
-Data folder: T3CODE_HOME (T3 Code's own setting, default ~/.t3) + /userdata; T3_HOME may point at either folder.
+Data folder: GETTER_HOME (default ~/.getter-code) + /userdata; explicit T3_HOME/T3CODE_HOME aliases remain supported.
 Needs Python 3.8+. Opens statev2.sqlite read-only; never reads secrets/token/auth files."""
 import sqlite3, os, re, json, sys, datetime as dt, difflib
 if sys.version_info < (3, 8): print("PYTHON_TOO_OLD: t3q.py needs Python 3.8 or newer"); sys.exit(1)
 try: sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows consoles default to cp1252
 except Exception: pass
-def t3_dir():  # T3 Code stores state in <T3CODE_HOME or ~/.t3>/userdata (dev builds: /dev), same for stable and Nightly
-    for v in (os.environ.get("T3_HOME"), os.environ.get("T3CODE_HOME")):
+def t3_dir():  # Never discover the upstream installation unless a legacy alias explicitly names it.
+    for v in (os.environ.get("GETTER_HOME"), os.environ.get("T3_HOME"), os.environ.get("T3CODE_HOME")):
         v = (v or "").strip()
         if not v: continue
-        v = os.path.expanduser(v)
-        if os.path.exists(os.path.join(v, "statev2.sqlite")) or os.path.exists(os.path.join(v, "server-runtime.json")): return v
+        v = os.path.abspath(os.path.expanduser(v))
+        if os.path.exists(os.path.join(v, "statev2.sqlite")) or os.path.exists(os.path.join(v, "server-runtime.json")) or os.path.basename(v).lower() in ("userdata", "dev"): return v
         return os.path.join(v, "userdata")
-    base = os.path.join(os.path.expanduser("~"), ".t3")
-    for sub in ("userdata", "dev"):
-        if os.path.exists(os.path.join(base, sub, "statev2.sqlite")): return os.path.join(base, sub)
-    return os.path.join(base, "userdata")
+    return os.path.join(os.path.expanduser("~"), ".getter-code", "userdata")
 D = t3_dir()
 P = os.path.join(D, "statev2.sqlite")
 HOME = os.path.expanduser("~")
@@ -57,7 +54,7 @@ CMD = sys.argv[1] if len(sys.argv) > 1 else "overview"
 if CMD not in ("overview", "waiting", "thread", "projects", "health", "usage"):
     print("usage: python3 t3q.py overview|waiting|thread|projects|health|usage   (Windows: py -3 or python)"); sys.exit(0 if CMD in ("help", "-h", "--help") else 2)
 if CMD != "usage":
-    if not os.path.exists(P): print("NO_T3_DATA at", tilde(D), "- T3 Code has not run on this computer yet (or T3CODE_HOME points elsewhere)."); sys.exit(0)
+    if not os.path.exists(P): print("NO_T3_DATA at", tilde(D), "- Getter Code has not run here yet (or GETTER_HOME points elsewhere)."); sys.exit(0)
     db = sqlite3.connect("file:" + P.replace("\\", "/") + "?mode=ro", uri=True)
 q = lambda s, a=(): db.execute(s, a).fetchall()
 # Older T3 builds kept approvals in their own table; newer ones keep them in runtime_requests (already counted)

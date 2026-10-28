@@ -8,6 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKILL = (ROOT / "skills" / "t3-install-tools" / "SKILL.md").read_text(encoding="utf-8")
 FETCHER = re.search(r"````python\n(.*?)````", SKILL, re.S).group(1)
 MANIFEST = json.loads((ROOT / "manifest.json").read_text())
+UPSTREAM_MANIFEST = json.loads((ROOT / "upstream-manifest.json").read_text())
 TOOLS = [f for f in MANIFEST["files"] if f["kind"] == "tool"]
 sha = lambda b: hashlib.sha256(b).hexdigest()
 
@@ -31,12 +32,15 @@ class Fetcher(unittest.TestCase):
 
     def test_pins_match_this_release(self):
         pin = re.search(r'PIN = "([^"]*)"', FETCHER).group(1)
-        self.assertEqual(pin, MANIFEST["version"], "t3-install-tools PIN differs from VERSION: re-pin the fetcher, then run scripts/sync-skills")
+        self.assertEqual(pin, UPSTREAM_MANIFEST["version"], "upstream skills must retain their original pinned release")
         prose = re.findall(r"This skill pins release `([^`]+)`", SKILL)
         self.assertEqual(prose, [pin], "the t3-install-tools text names a different release than its PIN")
         pinned = dict(re.findall(r'^ "([^"]+)": (\[[^\]]+\])', FETCHER, re.M))
-        self.assertEqual({k: json.loads(v) for k, v in pinned.items()}, {f["path"]: [f["dest"], f["sha256"]] for f in TOOLS},
-                         "t3-install-tools pins differ from manifest.json: re-pin the fetcher, then run scripts/sync-skills")
+        self.assertEqual({k: json.loads(v) for k, v in pinned.items()}, {f["path"]: [f["dest"], f["sha256"]] for f in UPSTREAM_MANIFEST["files"] if f["kind"] == "tool"},
+                         "t3-install-tools pins differ from the preserved upstream manifest")
+        upstream_skills = {f["path"]: f["sha256"] for f in UPSTREAM_MANIFEST["files"] if f["kind"] == "skill"}
+        self.assertEqual({f["path"]: f["sha256"] for f in MANIFEST["files"] if f["kind"] == "skill"}, upstream_skills,
+                         "Getter wrappers must preserve the upstream skill names and bytes")
         started = (ROOT / "skills" / "t3-getting-started" / "SKILL.md").read_text(encoding="utf-8")
         self.assertTrue(started.isascii(), "t3-getting-started must stay ASCII (no em dashes)")
         url = f"https://raw.githubusercontent.com/Deepusleepy/t3-tots/{pin}/assets/avatar.png"
@@ -57,7 +61,7 @@ class Fetcher(unittest.TestCase):
         for name in ("t3ctl.cmd", "t3listen.cmd", "ui-press.applescript", "cleanup/scan.py", "report/report.py", "manifest.json", "VERSION"):
             self.assertTrue((self.dst / name).is_file(), name)
         self.assertFalse((self.dst / "tools").exists()); self.assertFalse((self.dst / "skills").exists())
-        self.assertTrue(os.stat(self.dst / "t3ctl").st_mode & stat.S_IXUSR)
+        if os.name != "nt": self.assertTrue(os.stat(self.dst / "t3ctl").st_mode & stat.S_IXUSR)
         h = run(self.f, "hashes", "windows", dst=self.dst).stdout
         self.assertIn("  t3ctl.cmd\n", h); self.assertNotIn("tools/", h); self.assertNotIn("t3ui", h)
 
@@ -80,8 +84,8 @@ class Fetcher(unittest.TestCase):
         self.assertIn("@('tools/windows/t3ctl.cmd','t3ctl.cmd',", win); self.assertNotIn("applescript", win)
         self.assertIn(f"@('manifest.json','manifest.json','{sha((self.dst / 'manifest.json').read_bytes())}')", win)
         self.assertIn("  manifest.json\n", run(self.f, "hashes", "linux", dst=self.dst).stdout)
-        if not shutil.which("curl"):
-            self.skipTest("no curl")
+        if os.name == "nt" or not shutil.which("curl") or not shutil.which("sh"):
+            self.skipTest("POSIX install execution requires native sh and curl")
         sh = run(self.f, "emit", "macos", str(self.tmp / "mac"), dst=self.dst, env={"T3TOTS_RAW_BASE": ROOT.as_uri() + "/"}).stdout
         r = subprocess.run(["sh", "-c", sh], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr); self.assertIn("files verified", r.stdout)
@@ -95,8 +99,8 @@ class Fetcher(unittest.TestCase):
         self.assertEqual((mac / "VERSION").read_text().strip(), MANIFEST["version"])
 
     def test_linux_install_chmods_only_what_it_installs(self):
-        if not shutil.which("curl"):
-            self.skipTest("no curl")
+        if os.name == "nt" or not shutil.which("curl") or not shutil.which("sh"):
+            self.skipTest("POSIX install execution requires native sh and curl")
         run(self.f, "box", "--from", str(ROOT), dst=self.dst)
         sh = run(self.f, "emit", "linux", str(self.tmp / "lin"), dst=self.dst, env={"T3TOTS_RAW_BASE": ROOT.as_uri() + "/"}).stdout
         self.assertNotIn("t3ui", sh)
@@ -289,6 +293,7 @@ class T3uiQuoting(unittest.TestCase):
     def ks_line(self):
         line = [l for l in (ROOT / "tools" / "t3ui").read_text().splitlines() if l.startswith("ks(){")][0]
         return line
+    @unittest.skipIf(os.name == "nt", "POSIX osascript stub requires a native POSIX shell")
     def test_text_is_an_argument_with_a_stub(self):
         d = tempfile.mkdtemp(); stub = os.path.join(d, "osascript")
         with open(stub, "w") as f: f.write('#!/bin/sh\nfor a in "$@"; do printf "%s\\0" "$a"; done > "$(dirname "$0")/args"\n')

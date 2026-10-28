@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 // t3ctl - tiny client for the local T3 Code server (T3 Tots). Needs Node 22+.
-// Token: the `token` file next to this script (never printed). T3 data: T3CODE_HOME (default ~/.t3) + /userdata.
+// Token: the `token` file next to this script (never printed). Getter data: GETTER_HOME (default ~/.getter-code) + /userdata.
 const fs = require("fs"), path = require("path"), os = require("os"), crypto = require("crypto");
 const HOME = os.homedir();
 const die = (code, msg) => { console.error(`${code}: ${msg}`); process.exit(1); };
-function t3Dir() { // same for stable and Nightly; T3_HOME may point at the base or the userdata folder
-  for (let v of [process.env.T3_HOME, process.env.T3CODE_HOME]) {
-    v = (v || "").trim(); if (!v) continue; if (v.startsWith("~")) v = path.join(HOME, v.slice(1));
-    return fs.existsSync(path.join(v, "server-runtime.json")) || fs.existsSync(path.join(v, "statev2.sqlite")) ? v : path.join(v, "userdata");
+function t3Dir() { // explicit legacy aliases still work; never discover the upstream installation implicitly
+  for (let v of [process.env.GETTER_HOME, process.env.T3_HOME, process.env.T3CODE_HOME]) {
+    v = (v || "").trim(); if (!v) continue;
+    if (v === "~" || /^~[\\/]/.test(v)) v = path.join(HOME, v.slice(1));
+    v = path.resolve(v);
+    return fs.existsSync(path.join(v, "server-runtime.json")) || fs.existsSync(path.join(v, "statev2.sqlite")) || /^(userdata|dev)$/i.test(path.basename(v)) ? v : path.join(v, "userdata");
   }
-  const base = path.join(HOME, ".t3");
-  return ["userdata", "dev"].map((d) => path.join(base, d)).find((d) => fs.existsSync(path.join(d, "server-runtime.json"))) || path.join(base, "userdata");
+  return path.join(HOME, ".getter-code", "userdata");
 }
 let BASE = "", H = {};
 function init() {
@@ -430,7 +431,7 @@ function skillHash(dir) { // one hash per skill folder: its file list and every 
   return sha256(skillFiles(dir).map((r) => `${r}\0${sha256(fs.readFileSync(path.join(dir, ...r.split("/"))))}\n`).join("")); }
 function skillsSource(from) {
   const cands = from && from !== true ? [path.join(expandHome(from), "skills"), expandHome(from)] : [path.join(__dirname, "skills"), path.join(__dirname, "..", "skills")];
-  const isOurs = (d) => { try { return JSON.parse(fs.readFileSync(path.join(d, "..", "manifest.json"), "utf8")).name === "t3-tots"; } catch { return false; } };
+  const isOurs = (d) => { try { return ["t3-tots", "getter-tots"].includes(JSON.parse(fs.readFileSync(path.join(d, "..", "manifest.json"), "utf8")).name); } catch { return false; } };
   const dir = cands.find((d) => fs.existsSync(d) && fs.readdirSync(d).some((n) => fs.existsSync(path.join(d, n, "SKILL.md"))) && ((from && from !== true) || isOurs(d)));
   if (!dir) die("NO_SKILLS_SOURCE", `no skills found in ${cands.join(" or ")}. Pass --from <repo checkout or release folder>.`);
   const names = fs.readdirSync(dir).filter((n) => !n.startsWith(".") && fs.existsSync(path.join(dir, n, "SKILL.md"))).sort();
@@ -649,4 +650,4 @@ const main = async () => {
   else console.log("t3ctl projects | models | threads [--project p] [--main] [--limit n] | new --project p --prompt t [--model m --effort e] [--wait [--timeout seconds]] | send --thread id|title --prompt t [--wait [--timeout seconds]] [--queue] | queue --thread t [--steer runId|all | --cancel runId|all] | read --thread id|title [--last N] | settle|unsettle --thread t | rename --thread t --title x | interrupt --thread t [--hold] | status --thread t [--json] | pending --thread t [--json] | answer --thread t [--request id] (--pick label | --text txt | --answers json | --decision accept|decline|... [--user-approved] [--redirect]) | diff --thread t | files --thread t [--last-turn] [--copy no] | limits [--json] | snooze --thread t --until +2h|HH:MM|ISO | unsnooze --thread t | queue --thread t (--resume | --edit runId --text x | --move runId [--before runId|end | --first]) | model --thread t [--model m] [--effort e] [--provider p] | search --query q [--limit n] | tasks [--upsert ... [--prompt-file f] | --enable id | --disable id | --run id | --delete id --yes] | prs --project p [--state open] | pr --thread t [--number n] [--all] | pr --project p --repo o/r --number n | fork --thread t [--run runId] [--title x] | stop --thread t | subtasks --thread t [--all] | subagent-stop --thread t --subagent id | resume-at-reset --thread t [--cancel] | snooze-until-reset --thread t [--cancel] | watch --thread a[,b] [--state file] [--stall-min 20] [--json] | new/send ... --attach img1.png,img2.jpg | new/send ... --prompt-file p.md | send ... --no-verify | skills [list] [--from dir] [--to dir] | skills install --to dir [--from dir] [--only a,b] [--dry-run] [--force]");
 };
 if (require.main !== module) module.exports = { skillHash, args, missingValue, pickThread, pickProject, outPath, sensitivePath, sensitiveName, SENSITIVE_NAME, isMainThread, limitLine, localT, tzName, isSettled, threadLine, decodeText, approvalAllowed, redirectText, deliveryOf, stallHint, watchSnap, watchDiff, pendingOf, requestInfo, parseWhen, parseEvery, buildAnswer, matchOption };
-else main().catch((e) => { const m = String(e.message).match(/"message":"([^"]{3,300})"/); const msg = m && /^\[\{"_tag":"Fail"/.test(e.message) ? m[1] : e.message; console.error(/^[A-Z][A-Z0-9_]{3,}[: (]/.test(msg) ? msg : `error: ${msg}`); process.exit(1); });
+else main().catch((e) => { const m = String(e.message).match(/"message":"([^"]{3,300})"/); const msg = m && /^\[\{"_tag":"Fail"/.test(e.message) ? m[1] : e.message; console.error(/^[A-Z][A-Z0-9_]{3,}[: (]/.test(msg) ? msg : `error: ${msg}`); process.exitCode = 1; });

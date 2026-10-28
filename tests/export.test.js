@@ -9,7 +9,7 @@ test("export.js: --project=Foo exports only Foo; two exact matches are AMBIGUOUS
   fs.writeFileSync(path.join(tmp, "token"), "test-fixture");
   const now = new Date().toISOString();
   const projects = [["p-foo", "Foo", "/w/foo"], ["p-foobar", "FooBar", "/w/foobar"], ["p-d1", "Dup", "/w/d1"], ["p-d2", "dup", "/w/d2"], ["p-s", "key " + "sk-" + "ant-abcdefghijklmnopqrstuvwxyz0123", "/w/s"]]
-    .map(([id, title, workspaceRoot]) => ({ id, title, workspaceRoot }));
+    .map(([id, title, workspaceRoot]) => ({ id, title, workspaceRoot: path.resolve(workspaceRoot) }));
   const threads = projects.map((p) => ({ id: "t-" + p.id, projectId: p.id, title: "work on " + p.title, updatedAt: now, createdAt: now, status: "idle" }));
   const srv = http.createServer((req, res) => {
     if (req.url === "/api/orchestration/shell") return res.end(JSON.stringify({ projects, threads }));
@@ -24,7 +24,7 @@ test("export.js: --project=Foo exports only Foo; two exact matches are AMBIGUOUS
   try {
     let r = await run("export.js", "--project=Foo"); assert.equal(r.code, 0, r.err); assert.deepEqual(titles(r), ["Foo"]);
     r = await run("export.js", "--project", "foo", "--days=3"); assert.deepEqual(titles(r), ["Foo"]); assert.equal(JSON.parse(r.out).days, 3);
-    r = await run("export.js", "--project=/w/foobar/"); assert.deepEqual(titles(r), ["FooBar"]);
+    r = await run("export.js", "--project=" + projects[1].workspaceRoot + path.sep); assert.deepEqual(titles(r), ["FooBar"]);
     r = await run("export.js", "--project=p-d2"); assert.deepEqual(titles(r), ["dup"]);
     r = await run("export.js", "--project=P-D2"); assert.equal(r.code, 1); assert.match(r.err, /NOT_FOUND/); // ids match exactly
     r = await run("export.js", "--project=Dup"); assert.equal(r.code, 1); assert.match(r.err, /AMBIGUOUS/); assert.match(r.err, /p-d1/); assert.match(r.err, /p-d2/);

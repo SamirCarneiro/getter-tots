@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+// Getter Tots local command wrapper. T3 Tots by Deepusleepy remains the underlying client.
+const { spawnSync } = require("child_process"), path = require("path"), os = require("os");
+let argv = process.argv.slice(2);
+// PowerShell 5 cannot reliably forward embedded quotes to native executables.
+if (argv[0] === "--getter-args-base64") {
+  try {
+    const decoded = JSON.parse(Buffer.from(argv[1] || "", "base64").toString("utf8"));
+    if (argv.length !== 2 || !Array.isArray(decoded) || decoded.some((v) => typeof v !== "string")) throw new Error("invalid arguments");
+    argv = decoded;
+  } catch { console.error("USAGE: invalid encoded Getter arguments"); process.exit(2); }
+}
+const args = [];
+let home;
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === "--getter-home") {
+    home = argv[++i];
+    if (!home || !home.trim() || home.startsWith("--")) { console.error("USAGE: --getter-home needs a folder"); process.exit(2); }
+  } else if (argv[i].startsWith("--getter-home=")) {
+    home = argv[i].slice("--getter-home=".length);
+    if (!home.trim()) { console.error("USAGE: --getter-home needs a folder"); process.exit(2); }
+  } else args.push(argv[i]);
+}
+const env = { ...process.env, GETTER_HOME: home || [process.env.GETTER_HOME, process.env.T3_HOME, process.env.T3CODE_HOME].find((v) => v && v.trim()) || path.join(os.homedir(), ".getter-code") };
+const result = spawnSync(process.execPath, [path.join(__dirname, "t3ctl"), ...args], { stdio: "inherit", env });
+if (result.error) { console.error("GETTER_RUNTIME_UNAVAILABLE: " + result.error.message); process.exit(2); }
+process.exit(result.status === null ? 1 : result.status);

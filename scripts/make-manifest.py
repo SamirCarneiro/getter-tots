@@ -13,11 +13,14 @@ A skill's dest is relative to the agent's skills folder (see `t3ctl skills`).
 import hashlib, json, pathlib, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-REPO = "Deepusleepy/t3-tots"
+REPO = "SamirCarneiro/getter-tots"
+UPSTREAM_REPO = "Deepusleepy/t3-tots"
 ALL = ["macos", "linux", "windows", "box"]
 TOOLS = [  # repo path, installed path, targets, purpose
     ("tools/t3q.py", "t3q.py", ALL, "read-only T3 database queries"),
     ("tools/t3ctl", "t3ctl", ALL, "T3 local API client and skills installer (Node 22+)"),
+    ("tools/getterctl", "getterctl", ALL, "Getter command wrapper with isolated runtime discovery"),
+    ("tools/getterq", "getterq", ALL, "Getter read-only query wrapper with isolated runtime discovery"),
     ("tools/windows/t3ctl.cmd", "t3ctl.cmd", ["windows", "box"], "Windows wrapper for t3ctl"),
     ("tools/t3listen", "t3listen", ALL, "pushes T3 questions (open and close) and thread finish, fail and cancel events to your webhook (Node 22+, optional)"),
     ("tools/windows/t3listen.cmd", "t3listen.cmd", ["windows", "box"], "Windows wrapper for t3listen"),
@@ -55,7 +58,8 @@ def build(version):
         for f in sorted(x for x in d.rglob("*") if x.is_file() and not x.name.startswith(".") and "__pycache__" not in x.parts):
             rel = f.relative_to(ROOT).as_posix()
             files.append(entry(rel, f.relative_to(ROOT / "skills").as_posix(), "skill"))
-    return {"name": "t3-tots", "version": version, "repo": f"https://github.com/{REPO}",
+    return {"name": "getter-tots", "version": version, "repo": f"https://github.com/{REPO}",
+            "upstream": {"repo": f"https://github.com/{UPSTREAM_REPO}", "version": "v1.4.29", "manifest": "upstream-manifest.json"},
             "raw_base": f"https://raw.githubusercontent.com/{REPO}/{version}/",
             "requires": {"python": ">=3.8", "node": ">=22 (t3ctl, t3listen), >=18 (export.js, survey.js)"},
             "files": files}

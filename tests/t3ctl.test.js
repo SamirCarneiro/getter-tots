@@ -187,9 +187,9 @@ test("sensitivePath: dotfiles, dot folders and token, auth, secret, credential o
   assert.equal(t.sensitivePath(path.join(path.sep, "home", ".hidden", "proj", "a.ts"), path.join(path.sep, "home", ".hidden", "proj")), false); // a dot folder above the root is fine
 });
 test("pickProject: id, folder, exact title, one title match; several or none is an error, never the first one", () => {
-  const P = [{ id: "p1", title: "Web", workspaceRoot: "/r/web" }, { id: "p2", title: "Web admin", workspaceRoot: "/r/admin" }, { id: "p3", title: "Website", workspaceRoot: "/r/site" }, { id: "p4", title: "API", workspaceRoot: "/r/api" }];
+  const P = [{ id: "p1", title: "Web", workspaceRoot: "/r/web" }, { id: "p2", title: "Web admin", workspaceRoot: "/r/admin" }, { id: "p3", title: "Website", workspaceRoot: "/r/site" }, { id: "p4", title: "API", workspaceRoot: "/r/api" }].map((p) => ({ ...p, workspaceRoot: path.resolve(p.workspaceRoot) }));
   assert.equal(t.pickProject(P, "p3").id, "p3");
-  assert.equal(t.pickProject(P, "/r/admin/").id, "p2");
+  assert.equal(t.pickProject(P, P[1].workspaceRoot + path.sep).id, "p2");
   assert.equal(t.pickProject(P, "web").id, "p1");            // exact title beats the two that contain it
   assert.equal(t.pickProject(P, "ap").id, "p4");             // one title contains it
   assert.throws(() => t.pickProject(P, "eb"), /AMBIGUOUS: 3 projects/);

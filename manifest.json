@@ -1,8 +1,13 @@
 {
- "name": "t3-tots",
- "version": "v1.4.29",
- "repo": "https://github.com/Deepusleepy/t3-tots",
- "raw_base": "https://raw.githubusercontent.com/Deepusleepy/t3-tots/v1.4.29/",
+ "name": "getter-tots",
+ "version": "v1.4.29-getter.1",
+ "repo": "https://github.com/SamirCarneiro/getter-tots",
+ "upstream": {
+  "repo": "https://github.com/Deepusleepy/t3-tots",
+  "version": "v1.4.29",
+  "manifest": "upstream-manifest.json"
+ },
+ "raw_base": "https://raw.githubusercontent.com/SamirCarneiro/getter-tots/v1.4.29-getter.1/",
  "requires": {
   "python": ">=3.8",
   "node": ">=22 (t3ctl, t3listen), >=18 (export.js, survey.js)"
@@ -12,8 +17,8 @@
    "path": "tools/t3q.py",
    "dest": "t3q.py",
    "kind": "tool",
-   "bytes": 24437,
-   "sha256": "ab0af56893860552d5b7163d25a0463d1b167ee31cbea0462aa6371098306365",
+   "bytes": 24358,
+   "sha256": "e6f6d1d1380425f5b37db3352f969b18a70c10d7015687c30fceffce11ce7850",
    "targets": [
     "macos",
     "linux",
@@ -26,8 +31,8 @@
    "path": "tools/t3ctl",
    "dest": "t3ctl",
    "kind": "tool",
-   "bytes": 74774,
-   "sha256": "a3b5d9636e8cf8dfbbae293dbaaeb56d64f77821ca9d920ab1643bd6b660d4d7",
+   "bytes": 74793,
+   "sha256": "bf204fd719e1aa017b773ae1da54582a2764d88f057be9ae1c685e495abcfbe2",
    "targets": [
     "macos",
     "linux",
@@ -35,6 +40,34 @@
     "box"
    ],
    "purpose": "T3 local API client and skills installer (Node 22+)"
+  },
+  {
+   "path": "tools/getterctl",
+   "dest": "getterctl",
+   "kind": "tool",
+   "bytes": 1668,
+   "sha256": "ecff1966bdba7dda1bc83e89bdad6af7ed29f5825aa70b54023199357c05f023",
+   "targets": [
+    "macos",
+    "linux",
+    "windows",
+    "box"
+   ],
+   "purpose": "Getter command wrapper with isolated runtime discovery"
+  },
+  {
+   "path": "tools/getterq",
+   "dest": "getterq",
+   "kind": "tool",
+   "bytes": 1911,
+   "sha256": "302ca56cb8361fb8ea729d8b6b84174da087e966d5cee8f95b1a108c0a88b6d8",
+   "targets": [
+    "macos",
+    "linux",
+    "windows",
+    "box"
+   ],
+   "purpose": "Getter read-only query wrapper with isolated runtime discovery"
   },
   {
    "path": "tools/windows/t3ctl.cmd",
@@ -52,8 +85,8 @@
    "path": "tools/t3listen",
    "dest": "t3listen",
    "kind": "tool",
-   "bytes": 55452,
-   "sha256": "c2741d36c04dc45d2668c5721ff2c38bfb26e7b3f3acf7369fd7efd8b7eba57d",
+   "bytes": 55530,
+   "sha256": "4e0c4c0715864525a5ca05444b64595f0c0de346ca42db349ab2a31d83715231",
    "targets": [
     "macos",
     "linux",
@@ -78,8 +111,8 @@
    "path": "tools/export.js",
    "dest": "export.js",
    "kind": "tool",
-   "bytes": 7124,
-   "sha256": "c25e93bc3515d554de7086adec3b79b32f58f6b869b220b015899b4d6253a3eb",
+   "bytes": 7105,
+   "sha256": "33c0b2cbaccb4d7f336d857b728c149068b6d27f1a4fb00b419fce6a944ece2d",
    "targets": [
     "macos",
     "linux",
@@ -92,8 +125,8 @@
    "path": "tools/survey.js",
    "dest": "survey.js",
    "kind": "tool",
-   "bytes": 4943,
-   "sha256": "206fff36b57e111fd061417f2c21eb7ee09fa5dfe1537843a81242d47e5d6052",
+   "bytes": 4924,
+   "sha256": "0b0d97c05bafd2e837f6486a1e0a3a5e57d2d2625b77cd770a690b9bd543516d",
    "targets": [
     "macos",
     "linux",

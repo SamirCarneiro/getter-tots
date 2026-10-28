@@ -6,7 +6,7 @@
 // The webhook URL and headers live only in listen.json next to this script and are never printed.
 const fs = require("fs"), path = require("path"), os = require("os"), crypto = require("crypto"), cp = require("child_process");
 const HOME = os.homedir(), DIR = __dirname, CONF = path.join(DIR, "listen.json"), HERE = path.join(DIR, "answered-here.json"), STATE = path.join(DIR, "listen-state.json"), LOG = path.join(DIR, "listen.log"), PID = path.join(DIR, "listen.pid");
-const LABEL = process.env.T3LISTEN_LABEL || "com.t3tots.listen", TASK = process.env.T3LISTEN_LABEL || "T3 Tots listener";
+const LABEL = process.env.GETTER_LISTEN_LABEL || process.env.T3LISTEN_LABEL || "com.getter.tots.listen", TASK = process.env.GETTER_LISTEN_LABEL || process.env.T3LISTEN_LABEL || "Getter Tots listener";
 const argv = process.argv.slice(2), cmd = argv[0] && !argv[0].startsWith("--") ? argv[0] : "run", flag = (f) => argv.includes(f);
 const optv = (f) => { // --key value or --key=value, like t3ctl
   const eq = argv.find((a) => a.startsWith(f + "=")); if (eq !== undefined) return eq.slice(f.length + 1) || undefined;
@@ -54,12 +54,13 @@ async function setup() { // stdin: line 1 = webhook URL, then "Header-Name: valu
 
 // ---------- T3 connection (same discovery as t3ctl) ----------
 function t3Dir() {
-  for (let v of [process.env.T3_HOME, process.env.T3CODE_HOME]) {
-    v = (v || "").trim(); if (!v) continue; if (v.startsWith("~")) v = path.join(HOME, v.slice(1));
-    return fs.existsSync(path.join(v, "server-runtime.json")) || fs.existsSync(path.join(v, "statev2.sqlite")) ? v : path.join(v, "userdata");
+  for (let v of [process.env.GETTER_HOME, process.env.T3_HOME, process.env.T3CODE_HOME]) {
+    v = (v || "").trim(); if (!v) continue;
+    if (v === "~" || /^~[\\/]/.test(v)) v = path.join(HOME, v.slice(1));
+    v = path.resolve(v);
+    return fs.existsSync(path.join(v, "server-runtime.json")) || fs.existsSync(path.join(v, "statev2.sqlite")) || /^(userdata|dev)$/i.test(path.basename(v)) ? v : path.join(v, "userdata");
   }
-  const base = path.join(HOME, ".t3");
-  return ["userdata", "dev"].map((d) => path.join(base, d)).find((d) => fs.existsSync(path.join(d, "server-runtime.json"))) || path.join(base, "userdata");
+  return path.join(HOME, ".getter-code", "userdata");
 }
 function endpoint() {
   const rt = readJSON(path.join(t3Dir(), "server-runtime.json"), null); if (!rt) return null;
@@ -463,7 +464,7 @@ function winProcs() { // node processes running THIS t3listen (never touches oth
 // systemd unit values: ExecStart and Environment are double-quoted with \\ and \" escaped; % is doubled (specifiers) everywhere and $ in
 // ExecStart (variable expansion). WorkingDirectory takes no quotes, so only % is escaped there. A newline can't be written safely: refuse.
 function systemdUnit(node, args, dir, env = {}) {
-  for (const v of [node, ...args, dir, ...Object.values(env)]) if (/[\r\n]/.test(v)) die("INSTALL_FAILED", "a path or T3_HOME value contains a newline");
+  for (const v of [node, ...args, dir, ...Object.values(env)]) if (/[\r\n]/.test(v)) die("INSTALL_FAILED", "a path or home value contains a newline");
   if (/^\s|\s$/.test(dir)) die("INSTALL_FAILED", `systemd can't keep spaces at the start or end of WorkingDirectory: "${dir}"`);
   const pct = (s) => String(s).replace(/%/g, "%%"), q = (s) => `"${pct(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
   return `[Unit]\nDescription=T3 Tots listener (T3 Code questions to webhook)\n\n[Service]\nExecStart=${[node, ...args].map((a) => q(a).replace(/\$/g, "$$$$")).join(" ")}\nWorkingDirectory=${pct(dir)}\nRestart=on-failure\nRestartSec=30\n${Object.entries(env).map(([k, v]) => `Environment=${q(`${k}=${v}`)}\n`).join("")}\n[Install]\nWantedBy=default.target\n`;
@@ -472,7 +473,7 @@ function install() {
   if (!fs.existsSync(CONF) && !extra.includes("--dry-run")) die("NO_LISTEN_CONFIG", `run setup first: node "${SELF}" setup`);
   const node = process.execPath, args = [SELF, "run", "--log", ...extra];
   if (process.platform === "darwin") {
-    const env = ["T3_HOME", "T3CODE_HOME"].filter((k) => process.env[k]).map((k) => `<key>${k}</key><string>${xml(process.env[k])}</string>`).join("");
+    const env = ["GETTER_HOME", "T3_HOME", "T3CODE_HOME"].filter((k) => process.env[k]).map((k) => `<key>${k}</key><string>${xml(process.env[k])}</string>`).join("");
     const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>\n<key>Label</key><string>${LABEL}</string>\n<key>ProgramArguments</key><array>${[node, ...args].map((a) => `<string>${xml(a)}</string>`).join("")}</array>\n<key>WorkingDirectory</key><string>${xml(DIR)}</string>\n<key>RunAtLoad</key><true/>\n<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>\n<key>ThrottleInterval</key><integer>30</integer>\n<key>ProcessType</key><string>Background</string>\n<key>StandardErrorPath</key><string>${xml(path.join(DIR, "listen.err.log"))}</string>\n${env ? `<key>EnvironmentVariables</key><dict>${env}</dict>\n` : ""}</dict></plist>\n`;
     fs.mkdirSync(path.dirname(plistPath()), { recursive: true }); fs.writeFileSync(plistPath(), plist);
     const dom = `gui/${process.getuid()}`; tryRun("launchctl", ["bootout", `${dom}/${LABEL}`]);
@@ -489,7 +490,7 @@ function install() {
     ps(`$w=New-Object -ComObject WScript.Shell; $l=$w.CreateShortcut(${psq(startupLnk())}); $l.TargetPath=${psq(path.join(process.env.SystemRoot || "C:\\Windows", "System32", "conhost.exe"))}; $l.Arguments=${psq(["--headless", node, ...args].map((a) => `"${a}"`).join(" "))}; $l.WorkingDirectory=${psq(DIR)}; $l.WindowStyle=7; $l.Save(); Start-Process -WindowStyle Hidden -FilePath $l.TargetPath -ArgumentList $l.Arguments -WorkingDirectory ${psq(DIR)}`);
     console.log(`installed: Startup shortcut "${startupLnk()}" (Task Scheduler said: ${r.out.trim().split("\n")[0].slice(0, 160)}); log ${LOG}`);
   } else {
-    const unit = systemdUnit(node, args, DIR, Object.fromEntries(["T3_HOME", "T3CODE_HOME"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])));
+    const unit = systemdUnit(node, args, DIR, Object.fromEntries(["GETTER_HOME", "T3_HOME", "T3CODE_HOME"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])));
     fs.mkdirSync(path.dirname(unitPath()), { recursive: true }); fs.writeFileSync(unitPath(), unit);
     sh("systemctl", ["--user", "daemon-reload"]); sh("systemctl", ["--user", "enable", "--now", unitName()]); tryRun("systemctl", ["--user", "restart", unitName()]);
     console.log(`installed: systemd user unit ${unitPath()} (log ${LOG})`);

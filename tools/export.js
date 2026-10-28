@@ -12,8 +12,8 @@ if(a.days!==undefined&&!(+a.days>0))die("USAGE","--days needs a positive number"
 const Q=("project" in a&&a.project!==true?String(a.project):"project" in a?"":"all").trim(),q=Q.toLowerCase(); // ids match exactly; titles and folders ignore case
 if(!q)die("USAGE","--project needs a value (a project id, folder, title, or all)");
 if(+process.versions.node.split(".")[0]<18||typeof fetch==="undefined")die("NODE_TOO_OLD","needs Node 18 or newer (found "+process.version+"). Install the current LTS from https://nodejs.org");
-const t3Dir=()=>{const H=os.homedir();for(let v of [process.env.T3_HOME,process.env.T3CODE_HOME]){v=(v||"").trim();if(!v)continue;if(v.startsWith("~"))v=path.join(H,v.slice(1));return fs.existsSync(path.join(v,"server-runtime.json"))||fs.existsSync(path.join(v,"statev2.sqlite"))?v:path.join(v,"userdata")}
- const b=path.join(H,".t3");return ["userdata","dev"].map(d=>path.join(b,d)).find(d=>fs.existsSync(path.join(d,"server-runtime.json")))||path.join(b,"userdata")};
+const t3Dir=()=>{const H=os.homedir();for(let v of [process.env.GETTER_HOME,process.env.T3_HOME,process.env.T3CODE_HOME]){v=(v||"").trim();if(!v)continue;if(v==="~"||/^~[\\/]/.test(v))v=path.join(H,v.slice(1));v=path.resolve(v);return fs.existsSync(path.join(v,"server-runtime.json"))||fs.existsSync(path.join(v,"statev2.sqlite"))||/^(userdata|dev)$/i.test(path.basename(v))?v:path.join(v,"userdata")}
+ return path.join(H,".getter-code","userdata")};
 let rt;try{rt=JSON.parse(fs.readFileSync(path.join(t3Dir(),"server-runtime.json"),"utf8"))}catch{die("T3_NOT_RUNNING","T3 Code isn't running on this computer (no server-runtime.json). Open T3 Code and try again.")}
 let T="";try{T=fs.readFileSync(path.join(__dirname,"token"),"utf8").trim()}catch{}if(!T)die("NO_TOKEN","no `token` file next to this script yet. Ask T3 Tots to issue one (setup step), then retry.");
 const H={Authorization:"Bearer "+T,"x-t3-orchestration-protocol":"2"};const B=`http://${!rt.host||rt.host==="0.0.0.0"||rt.host==="::"?"127.0.0.1":rt.host.includes(":")?`[${rt.host}]`:rt.host}:${rt.port}`;
